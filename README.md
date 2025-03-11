@@ -4,8 +4,10 @@
 * [Description](#Description)
 * [Features](#Features)
 * [Hardware Requirements](#Hardware-Requirements)
-* [Code Overview](#Code-Overview)
-        *[Alarm Clock Code](#Alarm-Clock-Code)
+* [Code Overview](#Code-Overview) 1.[Alarm Clock Code](#Alarm-Clock-Code) 2.[Weather API Integration](#Weather-API-Integration)
+* [Usage](#Usage)
+* [Contact](#Contact)
+  
 ## Description
 This project is a screen-time reducing alarm clock that is designed to encourage healthier sleep habits. The device features an LCD display, a buzzer for alarms, and integrates with a weather API to display real-time temperature updates.
 ## Features
@@ -79,3 +81,53 @@ void loop()
 }
 ```
 ### Weather API Integration
+This fetches real-time weather data and will display it on the LCD screen.
+```
+#include <Bridge.h>
+#include <HttpClient.h>
+#include <Wire.h>
+#include "rgb_lcd.h"
+#include <ArduinoJson.h>
+
+rgb_lcd lcd;
+String city = "Sligo";
+String apiKey = "YOUR_API_KEY";
+
+void setup() {
+    Bridge.begin();
+    Serial.begin(9600);
+    lcd.begin(16, 2);
+    lcd.setRGB(0, 255, 0);
+    lcd.setCursor(0, 0);
+    lcd.print("Weather Fetcher");
+    delay(2000);
+}
+
+void loop() {
+    HttpClient client;
+    String url = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "&appid=" + apiKey + "&units=metric";
+    client.get(url);
+
+    String response = "";
+    while (client.available()) {
+        char c = client.read();
+        response += c;
+    }
+
+    StaticJsonDocument<1024> doc;
+    deserializeJson(doc, response);
+    float temperature = doc["main"]["temp"];
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Temp: ");
+    lcd.print(temperature);
+    lcd.print(" C");
+    
+    delay(60000);
+}
+```
+## Usage
+Upload the code provided to your Arduino board and ensure all the hardware is connected properly. The device will then display the current time, an alarm that sounds at the correct time and will also fetch weather updates periodically.
+## Contact
+This is a college project, please feel free to contact us through Github.
