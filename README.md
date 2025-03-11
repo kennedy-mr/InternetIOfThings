@@ -4,7 +4,9 @@
 * [Description](#Description)
 * [Features](#Features)
 * [Hardware Requirements](#Hardware-Requirements)
-* [Code Overview](#Code-Overview) 1.[Alarm Clock Code](#Alarm-Clock-Code) 2.[Weather API Integration](#Weather-API-Integration)
+* [Code Overview](#Code-Overview)
+  1.[Alarm Clock Code](#Alarm-Clock-Code)
+  2.[Weather API Integration](#Weather-API-Integration)
 * [Usage](#Usage)
 * [Contact](#Contact)
   
