@@ -81,7 +81,7 @@ void loop()
     time_minutes = 0;
   }
 
-  // Wrap the time back to 1:00 if it exceeds 12:59:
+  // Wrap the time back to 00:00 if it exceeds 23:59:
   if (time_hours == 24) 
   {
     time_hours = 0;
