@@ -8,7 +8,7 @@ rgb_lcd lcd;	//LCD PORT 12c
 int alarm_clock_time_hours = 7;
 int alarm_clock_time_minutes = 23;
 int time_hours = 7; 
-int time_minutes = 22; 
+int time_minutes = 22;
 int button_state = 0;  
 int k=0;
 int last_button_state = 0;  // To store the previous button state
