@@ -1,0 +1,24 @@
+#include <Bridge.h>
+#include <Process.h>
+
+void setup() {
+  Serial.begin(9600);    
+  while (!Serial);       
+
+  Bridge.begin();        
+
+  Serial.println("Getting time from Linux...");
+}
+
+void loop() {
+  Process time;
+  time.begin("date"); // "date" command returns current time
+  time.run();
+
+  while (time.available() > 0) {
+    char c = time.read();
+    Serial.print(c);
+  }
+
+  delay(5000); // wait 5 seconds before getting time again
+}
