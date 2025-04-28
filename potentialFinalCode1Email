@@ -1,0 +1,272 @@
+#include <Bridge.h>
+#include <Process.h>
+//weather
+#include "rgb_lcd.h"
+rgb_lcd lcd;
+
+#include <Wire.h>
+
+#include <HttpClient.h> //for the email
+
+
+//two buttons and LED
+#define button 4    //d4
+#define button_1 5    //d5
+#define BUZZER 6  //d6
+ 
+#define LED 7
+
+//weather
+const char* apiKey="7ecbb0c17a028641084777254799ed61";
+const char* city="Sligo,IE";
+
+int colorR = 255, colorG = 255, colorB = 255;
+
+int k = 1; //for the email
+
+// Alarm and time variables
+String alarm_clock_time_hours = "16";
+String alarm_clock_time_minutes = "43";
+int button_state = 0;
+int last_button_state = 0;
+String time_hours="";
+String time_minutes="";
+String time_seconds="";
+
+//two buttons and LED
+int last_button_1_state = 0;
+int button_1_state = 0;
+
+
+void setup() {
+  Serial.begin(9600);    
+  while (!Serial);      
+
+  Bridge.begin();
+
+  //weather    
+
+  Serial.println("Getting time from Linux...");  
+ 
+  lcd.begin(16,2);
+  lcd.setRGB(colorR, colorG, colorB);
+
+
+    // Set up the buzzer pin:
+  pinMode(BUZZER, OUTPUT);
+   // Set the button pin as input:
+  pinMode(button, INPUT);
+  pinMode(button_1, INPUT);
+  pinMode(LED,OUTPUT);    //Sets the pinMode to Output
+
+ 
+
+  while (!Serial);
+
+  Serial.println("Wifi Connected");
+}
+
+void loop() {
+
+
+  //weather
+  Serial.println("\nFetching Weather Date...");
+
+ 
+
+ 
+  //alarm clock
+  displayTime();
+  alarmClock();  
+    delay(4500);
+
+   
+    getWeatherData();    
+
+    delay(4500);  // Update every second  
+
+if (k<2){
+HttpClient client;
+
+client.get("http://api.pushingbox.com/pushingbox?devid=v3E1BB495722F8E0");
+while (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+  Serial.flush();
+  k++;
+
+  }
+
+  delay(5000);
+     
+}
+    
+
+  
+
+void getWeatherData()
+{
+  lcd.clear();
+  Process p;
+  String apiUrl="http://api.openweathermap.org/data/2.5/weather?q=" ;
+  apiUrl+= city;
+  apiUrl+= "&APPID=";
+  apiUrl+= apiKey;
+  apiUrl+= "&units=metric";
+
+  Serial.print("Requesting URL:");
+  Serial.println(apiUrl);
+
+  p.runShellCommand("curl -s\""+apiUrl+"\"");
+   //run
+   p.begin("curl");
+  p.addParameter("-s");
+  p.addParameter(apiUrl);
+
+  p.run();
+  String weatherData="";
+
+  while (p.available())
+  {
+    char c=p.read();
+    weatherData+=c;
+  }
+
+  Serial.println("\nRaw API Response:");
+  Serial.println(weatherData);
+ 
+
+  String extractedCity = extractValue(weatherData, "\"name\":\"","\"");
+  String extractedTemp = extractValue(weatherData, "\"temp\":",",");
+
+  Serial.print("City:");
+  Serial.println(extractedCity);
+
+  Serial.print("Temperature:");
+  Serial.print(extractedTemp);
+  Serial.println("C");
+
+  lcd.print(" ");
+  lcd.print(extractedCity);
+
+ lcd.print(" ");
+ lcd.print(extractedTemp);
+ lcd.print("C");
+
+
+}
+ String extractValue(String data, String key, String delimiter)
+  {
+ 
+    int start =data.indexOf(key);
+    if (start== -1) return "N/A";
+    start +=key.length();
+    int end =data.indexOf(delimiter, start);
+    if(end==-1) end =data.length();
+    return data.substring(start, end);
+ 
+
+  }
+
+ void displayTime()
+ {
+  lcd.clear();
+  Process time;
+  time.begin("date");
+ // "date" command returns current time
+
+  time.run();
+  String date="";
+ 
+  while (time.available() > 0) {
+    char c = time.read();
+    Serial.print(c);
+    lcd.print(c);
+    date+=c;  
+
+  }
+   time_hours=date[11];//in case of date 1-9 index change to 11
+   time_hours+=date[12];
+   time_minutes=date[14];
+   time_minutes+=date[15];
+   time_seconds=date[17];
+
+  Serial.print(time_hours);
+   Serial.print(time_minutes);
+   Serial.print(time_seconds);
+   
+
+ }
+ void alarmClock()
+ {
+    button_state = digitalRead(button);
+    button_1_state = digitalRead(button_1);
+
+    // Check if alarm time matches the current time
+    if ((alarm_clock_time_hours == time_hours) && (alarm_clock_time_minutes == time_minutes) && time_seconds=="0" ) //could we take out seconds to see if that changes anything
+    {
+        unsigned long startTime = millis(); // Play the alarm tone
+        tone(BUZZER, 1500);        
+
+    // Stop the buzzer when button is pressed
+    while( !(button_state == HIGH && last_button_state == LOW)) {
+       button_state = digitalRead(button);
+      if (button_state == HIGH && last_button_state == LOW){
+            break;
+        }
+       delay(50);  
+       last_button_state = button_state;
+   }
+   
+    noTone(BUZZER);
+    digitalWrite(LED, LOW);  //Sets the voltage to low
+    }
+
+    last_button_state = button_state;
+
+    //shifting alarm clock by one minute
+
+    if (button_1_state == HIGH && last_button_1_state == LOW) // Detecting button press
+  {
+    int snoozeMinutes = alarm_clock_time_minutes.toInt() +1;
+    int snoozeHours = alarm_clock_time_hours.toInt();
+    if (snoozeMinutes == 60)
+    {
+      snoozeHours = snoozeHours + 1;
+      snoozeMinutes = "0";
+        if (snoozeHours == 24) {
+                  snoozeHours = 0;
+            }
+
+//need the string alarm_clock_time_hours to be in the correct format for the code to work
+if (snoozeHours < 10){
+          alarm_clock_time_hours = "0" + String(snoozeHours);
+}
+else
+{
+alarm_clock_time_hours = String(snoozeHours);
+}
+
+}
+
+if (snoozeMinutes < 10){
+          alarm_clock_time_minutes = "0" + String(snoozeMinutes);
+}
+else
+{
+alarm_clock_time_minutes = String(snoozeMinutes);
+}
+
+}
+
+
+    digitalWrite(LED, HIGH); //Sets the voltage to high
+  }
+
+  last_button_1_state = button_1_state;
+
+
+
+
+ }
