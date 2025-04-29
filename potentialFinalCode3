@@ -86,7 +86,7 @@ while (client.available()) {
     Serial.print(c);
   }
   Serial.flush();
-  k++;
+  j++;
 
   }
 
