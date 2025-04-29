@@ -1,0 +1,195 @@
+#include <Bridge.h>
+#include <Wire.h>
+#include "rgb_lcd.h"
+#include <Process.h>
+#include <HttpClient.h> // For email notifications
+
+rgb_lcd lcd;  // LCD via I2C
+
+#define button 4     // D4: Alarm dismiss
+#define button_1 5   // D5: Increment alarm time
+#define BUZZER 6     // D6: Buzzer
+#define LED 7        // D7: Status LED
+
+// Weather config
+const char* apiKey = "7ecbb0c17a028641084777254799ed61";
+const char* city = "Sligo,IE";
+
+// LCD color
+int colorR = 255, colorG = 255, colorB = 255;
+
+// Email flag
+int j = 1;
+
+// Alarm time
+int alarm_clock_time_hours = 7;
+int alarm_clock_time_minutes = 23;
+
+// Current time simulation
+int time_hours = 7;
+int time_minutes = 22;
+int k = 0;  // Simulates seconds for minute update
+
+// Button states
+int button_state = 0;
+int button_1_state = 0;
+int last_button_state = 0;
+int last_button_1_state = 0;
+
+void setup() {
+  lcd.begin(16, 2);
+  lcd.setRGB(colorR, colorG, colorB);
+
+  Serial.begin(9600);
+  while (!Serial);
+
+  Bridge.begin();
+
+  pinMode(BUZZER, OUTPUT);
+  pinMode(button, INPUT);
+  pinMode(button_1, INPUT);
+  pinMode(LED, OUTPUT);
+
+  Serial.println("Wifi Connected");
+}
+
+void loop() {
+  Serial.println("\nFetching Weather Data...");
+
+  displayTime();
+  alarmClock();
+  delay(4500);
+
+  getWeatherData();
+  delay(4500);
+
+  if (j < 2) {
+    HttpClient client;
+    client.get("http://api.pushingbox.com/pushingbox?devid=v3E1BB495722F8E0");
+
+    while (client.available()) {
+      char c = client.read();
+      Serial.print(c);
+    }
+    Serial.flush();
+    j++;  // Increment to avoid repeat email
+  }
+
+  delay(5000);
+}
+
+void getWeatherData() {
+  lcd.clear();
+  Process p;
+  String apiUrl = "http://api.openweathermap.org/data/2.5/weather?q=";
+  apiUrl += city;
+  apiUrl += "&APPID=";
+  apiUrl += apiKey;
+  apiUrl += "&units=metric";
+
+  Serial.print("Requesting URL:");
+  Serial.println(apiUrl);
+
+  p.begin("curl");
+  p.addParameter("-s");
+  p.addParameter(apiUrl);
+  p.run();
+
+  String weatherData = "";
+  while (p.available()) {
+    char c = p.read();
+    weatherData += c;
+  }
+
+  Serial.println("\nRaw API Response:");
+  Serial.println(weatherData);
+
+  String extractedCity = extractValue(weatherData, "\"name\":\"", "\"");
+  String extractedTemp = extractValue(weatherData, "\"temp\":", ",");
+
+  Serial.print("City: ");
+  Serial.println(extractedCity);
+
+  Serial.print("Temperature: ");
+  Serial.print(extractedTemp);
+  Serial.println("C");
+
+  lcd.setCursor(0, 0);
+  lcd.print(" ");
+  lcd.print(extractedCity);
+
+  lcd.setCursor(0, 1);
+  lcd.print(" ");
+  lcd.print(extractedTemp);
+  lcd.print("C");
+}
+
+void displayTime() {
+  lcd.setCursor(0, 1);
+  lcd.print("Time: ");
+  if (time_hours < 10) lcd.print("0");
+  lcd.print(time_hours);
+  lcd.print(":");
+  if (time_minutes < 10) lcd.print("0");
+  lcd.print(time_minutes);
+
+  delay(1000);  // Simulate clock ticking
+
+  button_1_state = digitalRead(button_1);
+  if (button_1_state == HIGH && last_button_1_state == LOW) {
+    alarm_clock_time_minutes += 1;
+    digitalWrite(LED, HIGH);
+  }
+  last_button_1_state = button_1_state;
+
+  k++;
+  if (k == 60) {
+    time_minutes++;
+    k = 0;
+  }
+
+  if (time_minutes == 60) {
+    time_hours++;
+    time_minutes = 0;
+  }
+
+  if (time_hours == 24) {
+    time_hours = 0;
+    time_minutes = 0;
+  }
+}
+
+void alarmClock() {
+  button_state = digitalRead(button);
+  button_1_state = digitalRead(button_1);
+
+  if (alarm_clock_time_hours == time_hours &&
+      alarm_clock_time_minutes == time_minutes) {
+    
+    tone(BUZZER, 1500);  // Play alarm tone
+    unsigned long startTime = millis();
+
+    while (!(button_state == HIGH && last_button_state == LOW)) {
+      button_state = digitalRead(button);
+      if (button_state == HIGH && last_button_state == LOW) {
+        break;
+      }
+      delay(50);
+      last_button_state = button_state;
+    }
+
+    noTone(BUZZER);
+    digitalWrite(LED, LOW);
+  }
+
+  last_button_state = button_state;
+}
+
+String extractValue(String data, String keyStart, String keyEnd) {
+  int startIndex = data.indexOf(keyStart);
+  if (startIndex == -1) return "";
+  startIndex += keyStart.length();
+  int endIndex = data.indexOf(keyEnd, startIndex);
+  if (endIndex == -1) return "";
+  return data.substring(startIndex, endIndex);
+}
