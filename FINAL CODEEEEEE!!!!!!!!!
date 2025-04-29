@@ -4,7 +4,7 @@
 #include <Process.h>
 #include <HttpClient.h> // SENDS EMAIL WHEN ALARM GOES OFF (SHAUNAS PHONE)
 
-/
+
 rgb_lcd lcd;  // LCD via I2C
 #define BUTTON 4        // D4 (Button to stop alarm)
 #define BUTTON_1 5      // D5 (Button to snooze alarM NOT WORKING--MAYBE BROKEN)
