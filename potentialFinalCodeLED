@@ -1,0 +1,207 @@
+#include <Bridge.h>
+#include <Wire.h>
+#include "rgb_lcd.h"
+#include <Process.h>
+#include <HttpClient.h> //for email
+
+
+rgb_lcd lcd; 
+#define BUTTON 4        //D4 (off button)
+#define BUZZER 6        //D6 (buzzer)
+#define LED 7           //D7 (LED light)
+
+const char* apiKey = "7ecbb0c17a028641084777254799ed61";
+const char* city = "Sligo,IE";
+
+
+int alarm_clock_time_hours = 1;
+int alarm_clock_time_minutes = 26;
+int time_hours = 1;
+int time_minutes = 24;
+
+int button_state = 0;
+
+int last_button_state = 0;
+int notification_sent = 0;
+
+int colorR = 255, colorG = 255, colorB = 255;
+
+
+String extractValue(String data, String startDelimiter, String endDelimiter);
+void displayTime();
+void alarmClock();
+void getWeatherData();
+void sendNotification();
+
+
+void setup() {
+  lcd.begin(16, 2);
+  lcd.setRGB(colorR, colorG, colorB);
+
+  Serial.begin(9600);
+  while (!Serial);
+
+  Bridge.begin();
+
+  pinMode(BUZZER, OUTPUT);
+  pinMode(BUTTON, INPUT);
+  pinMode(LED, OUTPUT);
+
+  Serial.println("WiFi Connected");
+}
+
+void loop() {
+  Serial.println("\nFetching Weather Data...");
+
+  displayTime();
+  alarmClock();
+  delay(4500);
+
+  getWeatherData();
+  delay(4500);
+
+  if (notification_sent < 1) {
+    sendNotification();
+    notification_sent++;
+  }
+
+  delay(5000);
+}
+
+void displayTime() {
+  lcd.setCursor(0, 1);
+  lcd.print("Time: ");
+
+  //increments the time every second
+  time_minutes++;
+  if (time_minutes == 60) {
+    time_minutes = 0;
+    time_hours++;
+  }
+  if (time_hours == 24) {
+    time_hours = 0;
+  }
+
+  //displays the time in HH:MM format
+  if (time_hours < 10) lcd.print("0");
+  lcd.print(time_hours);
+  lcd.print(":");
+  if (time_minutes < 10) lcd.print("0");
+  lcd.print(time_minutes);
+
+  delay(1000);  // Wait for 1 second
+
+   if ((alarm_clock_time_hours == time_hours) && (alarm_clock_time_minutes-1 == time_minutes)&&k==0)
+  {
+   
+    digitalWrite(LED, HIGH); //Sets the voltage to high
+  }
+}
+
+ 
+
+void alarmClock() {
+  button_state = digitalRead(BUTTON);
+
+  //check if the time matches the alarm time
+  if ((alarm_clock_time_hours == time_hours) && (alarm_clock_time_minutes == time_minutes)) {
+    bool alarm_active = true;
+
+    while (alarm_active) {
+      tone(BUZZER, 1500); //alarm goes off
+      Serial.println("Alarm ringing...");
+
+      unsigned long startTime = millis();
+      bool button_pressed = false;
+
+      //wait for 1 minute or until the button is pressed
+      while (millis() - startTime < 60000) { //wait for 1 minute
+        button_state = digitalRead(BUTTON);
+        if (button_state == HIGH) {
+          button_pressed = true;
+         digitalWrite(LED, LOW);  //Sets the voltage to low
+          break;
+        }
+        delay(100); //check every 100ms
+      }
+
+      noTone(BUZZER); //turn off buzzer between checks
+
+      if (button_pressed) {
+        Serial.println("Button pressed. Alarm stopped.");
+        digitalWrite(LED, LOW);  //turn off LED when alarm is stopped
+        alarm_active = false; //stop the alarm
+      } else {
+        Serial.println("No button press. Snoozing for 1 minute...");
+        delay(60000); //wait for 1 minute before buzzing again
+      }
+    }
+  }
+
+  last_button_state = button_state;
+}
+
+void getWeatherData() {
+  lcd.clear();
+  Process p;
+  String apiUrl = "http://api.openweathermap.org/data/2.5/weather?q=";
+  apiUrl += city;
+  apiUrl += "&APPID=";
+  apiUrl += apiKey;
+  apiUrl += "&units=metric";
+
+  Serial.print("Requesting URL: ");
+  Serial.println(apiUrl);
+
+  p.begin("curl");
+  p.addParameter("-s");
+  p.addParameter(apiUrl);
+  p.run();
+
+  String weatherData = "";
+  while (p.available()) {
+    char c = p.read();
+    weatherData += c;
+  }
+
+  Serial.println("\nRaw API Response:");
+  Serial.println(weatherData);
+
+  String extractedCity = extractValue(weatherData, "\"name\":\"", "\"");
+  String extractedTemp = extractValue(weatherData, "\"temp\":", ",");
+
+  Serial.print("City: ");
+  Serial.println(extractedCity);
+  Serial.print("Temperature: ");
+  Serial.print(extractedTemp);
+  Serial.println(" C");
+
+  lcd.print(extractedCity);
+  lcd.print(" ");
+  lcd.print(extractedTemp);
+  lcd.print("C");
+}
+
+void sendNotification() {
+  HttpClient client;
+  client.get("http://api.pushingbox.com/pushingbox?devid=v3E1BB495722F8E0");
+
+  while (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+  Serial.flush();
+}
+
+// Helper function to extract values from JSON response
+String extractValue(String data, String startDelimiter, String endDelimiter) {
+  int startIndex = data.indexOf(startDelimiter);
+  if (startIndex == -1) return "";
+  startIndex += startDelimiter.length();
+  int endIndex = data.indexOf(endDelimiter, startIndex);
+  if (endIndex == -1) return "";
+  return data.substring(startIndex, endIndex);
+}
+
+
+}
